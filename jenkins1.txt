@@ -1,0 +1,226 @@
+# Jenkins Pipeline – Bigtable Sample Data Generator & Importer
+
+This document is written for **end users** who want to run the Jenkins pipeline to generate sample data and import it into **Google Bigtable**. It explains **how to use the pipeline correctly**, what each parameter means, and what to watch out for.
+
+This pipeline is a testing tool. If you misuse it, you will generate useless data or unnecessary cloud costs. Use it intentionally.
+
+---
+
+## What This Pipeline Does
+
+The pipeline performs the following actions:
+
+1. Generates synthetic (sample) data
+2. Writes the generated data into a Google Bigtable table
+
+Typical use cases:
+
+* Load testing
+* Performance testing
+* Schema and query pattern validation
+* Simulating production-scale data volumes
+
+This pipeline is **not** intended for importing real business data.
+
+---
+
+## Prerequisites
+
+Before running the pipeline, make sure the following requirements are met:
+
+* Jenkins agent has access to Google Cloud
+* A Google Cloud **Service Account** is configured in Jenkins
+* The Service Account has sufficient permissions, for example:
+
+  * `roles/bigtable.admin` (recommended)
+  * or at minimum permissions to create tables and write rows
+* A **Bigtable Instance already exists**
+
+> The pipeline will NOT create a Bigtable instance for you.
+
+---
+
+## Pipeline Parameters
+
+All parameters are mandatory. The pipeline will fail if any of them are missing or invalid.
+
+### 1. `BIGTABLE_INSTANCE_ID`
+
+**Description**
+The ID of the Bigtable instance where data will be written.
+
+**Example**
+
+```
+bt-test-instance
+```
+
+**Notes**
+
+* The instance must already exist
+* A wrong value will cause the pipeline to fail immediately
+
+---
+
+### 2. `BIGTABLE_TABLE_ID`
+
+**Description**
+The Bigtable table name where the data will be imported.
+
+**Example**
+
+```
+user_events
+```
+
+**Behavior**
+
+* If the table does not exist, the pipeline will create it
+* If the table already exists, new data will be appended
+
+> Existing data is NOT deleted automatically.
+
+---
+
+### 3. `COLUMN_FAMILY_NAME`
+
+**Description**
+The name of the Column Family used to store the data.
+
+**Example**
+
+```
+events_cf
+```
+
+**Important**
+
+* Column Family design directly affects query performance
+* Choose a name that matches your intended access patterns
+
+---
+
+### 4. `BATCH_SIZE`
+
+**Description**
+Number of rows written to Bigtable in each batch operation.
+
+**Example**
+
+```
+1000
+```
+
+**Guidelines**
+
+* Smaller batches → safer but slower
+* Larger batches → faster but may cause throttling or errors
+
+**Recommended values**
+
+* Initial testing: `500 – 1000`
+* Load testing: `2000 – 5000`
+
+---
+
+### 5. `DATA_SIZE`
+
+**Description**
+Total amount of data to generate.
+
+**Unit**
+Defined by the pipeline implementation (for example: total row count).
+
+**Example (row-based)**
+
+```
+1000000
+```
+
+**Warning**
+
+* Large values generate real Bigtable storage and write costs
+* Always confirm your expected cost before running large imports
+
+---
+
+## Pipeline Execution Flow
+
+When you run the pipeline, it performs the following steps:
+
+1. Validates all input parameters
+2. Authenticates to Google Cloud using the configured Service Account
+3. Checks if the target table exists
+4. Creates the table and column family if required
+5. Generates sample data
+6. Writes data to Bigtable in batches
+7. Logs progress and errors to Jenkins console output
+
+If authentication fails, the pipeline stops immediately.
+
+---
+
+## Logs and Troubleshooting
+
+All logs are available in the **Jenkins Console Output**.
+
+You can monitor:
+
+* Number of batches processed
+* Number of rows successfully written
+* Bigtable API errors
+
+If you encounter errors:
+
+1. Check Bigtable quotas and throttling limits
+2. Verify Service Account permissions
+3. Reduce `BATCH_SIZE`
+
+---
+
+## Example Usage Scenarios
+
+### Small Functional Test
+
+```
+BATCH_SIZE=500
+DATA_SIZE=10000
+```
+
+### Load / Stress Test
+
+```
+BATCH_SIZE=3000
+DATA_SIZE=5000000
+```
+
+### Schema or Query Validation
+
+* Use moderate `DATA_SIZE`
+* Focus on correct `COLUMN_FAMILY_NAME` and row structure
+
+---
+
+## Common Mistakes
+
+* Running the pipeline against the wrong Bigtable instance
+* Using large `DATA_SIZE` values without cost awareness
+* Setting very large `BATCH_SIZE` on small instances
+* Writing test data into production tables
+
+These are usage errors, not pipeline bugs.
+
+---
+
+## Summary
+
+This pipeline is a controlled way to generate and import test data into Bigtable.
+
+Use it when:
+
+* You understand why the data is needed
+* You know how much data you want to generate
+* You are aware of Bigtable performance and cost implications
+
+If those conditions are not met, reconsider running the pipeline.
+
