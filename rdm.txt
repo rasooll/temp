@@ -1,0 +1,170 @@
+# Bigtable Infrastructure Project (Terraform + Jenkins)
+
+## Overview
+
+This repository contains the Infrastructure as Code (IaC) required to provision **Google Cloud Bigtable** using **Terraform**.
+
+The project supports **multiple environments** (currently `dev` and `prd`) through:
+- Environment-specific Git branches
+- Environment-specific Terraform variable files
+- A Jenkins **Multibranch Pipeline**
+- Isolated Terraform state backends per environment
+
+At the moment, only the **development environment** is fully configured.  
+This document provides all required information for a **new engineer** to correctly set up and deploy the **production environment**.
+
+---
+
+## Technology Stack
+
+- **Terraform** – Infrastructure provisioning
+- **Google Cloud Bigtable** – Target resource
+- **CloudLego Bigtable Terraform Module**
+  - Module documentation: Sample Link
+- **Google Cloud Storage (GCS)** – Terraform remote state backend
+- **Jenkins** – CI/CD automation (Multibranch Pipeline)
+
+---
+
+## Repository Structure
+
+```
+.
+├── env/
+│   └── dev/
+│       ├── terraform.tfvars
+│       └── *.tfvars
+├── main.tf
+├── variables.tf
+├── backend.tf
+└── Jenkinsfile
+```
+
+> Only the `dev` environment exists currently.  
+> A separate directory must be created for `prd`.
+
+---
+
+## Environment Strategy
+
+### Git Branches
+
+Each environment maps directly to a Git branch:
+
+| Branch | Environment |
+|------|------------|
+| `dev` | Development |
+| `main` | Production |
+
+Jenkins **must** be configured as a **Multibranch Pipeline**.  
+Single-branch pipelines are **not supported**.
+
+---
+
+## Terraform Module
+
+This project uses the **Bigtable module from CloudLego**.
+
+- All Bigtable-specific resources are defined inside the module
+- This repository only wires inputs and manages environments
+
+Refer to the module documentation for variable definitions and schema design.
+
+---
+
+## Terraform State Management
+
+### Remote Backend (GCS)
+
+Terraform state is stored in **Google Cloud Storage (GCS)**.
+
+Rules:
+- Each environment must have its **own GCS bucket**
+- State must never be shared across environments
+
+Example bucket names:
+
+- `bigtable-terraform-state-dev`
+- `bigtable-terraform-state-prd`
+
+---
+
+## Terraform Variables
+
+### Development
+
+```
+env/dev/*.tfvars
+```
+
+### Production Setup
+
+1. Create directory:
+   ```
+   mkdir env/prd
+   ```
+2. Copy variables:
+   ```
+   cp env/dev/*.tfvars env/prd/
+   ```
+3. Update all production-specific values carefully.
+
+---
+
+## Jenkins Pipeline
+
+### Pipeline Type
+
+- Jenkins **Multibranch Pipeline** is mandatory
+- Branch mapping:
+  - `dev` → dev environment
+  - `main` → production environment
+
+### Service Accounts
+
+Naming pattern:
+- Dev: `gcp-sa-dev`
+- Prd: `gcp-sa-prd`
+
+Service accounts must have permissions for:
+- Bigtable administration
+- GCS Terraform state access
+
+---
+
+## Production Setup Checklist
+
+1. Create GCS bucket for production state
+2. Create `env/prd` directory
+3. Configure production tfvars
+4. Create `gcp-sa-prd` service account
+5. Assign IAM roles
+6. Configure Jenkins Multibranch Pipeline
+7. Merge to `main`
+8. Run Jenkins pipeline
+
+---
+
+## Deployment Flow
+
+```
+Git Branch
+  ↓
+Jenkins Multibranch Pipeline
+  ↓
+Environment Selection
+  ↓
+Terraform Init
+  ↓
+Terraform Plan
+  ↓
+Terraform Apply
+```
+
+---
+
+## Notes
+
+- Environment isolation is mandatory
+- Production is not a copy of development
+- Terraform state must remain isolated
